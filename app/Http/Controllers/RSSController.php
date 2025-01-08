@@ -45,8 +45,33 @@ class RSSController extends Controller
         if (!isset($data['response']['results'])) {
             return response()->json(['error' => 'Unable to fetch data'], 500);
         }
-        return response($data, 200);
 
-          }
+        // Generate RSS Feed
+        $feed = new Feed();
+        $channel = new Channel();
+        $channel->title("The Guardian: $section")
+            ->description("Latest articles from The Guardian's $section section")
+            ->url(request()->fullUrl());
+
+        foreach ($data['response']['results'] as $article) {
+            $item = new Item();
+            $pubDate = new \DateTime($article['webPublicationDate']);
+            
+            $item->title($article['webTitle'])
+                ->description($article['fields']['trailText'] ?? '')
+                ->url($article['webUrl'])
+                ->pubDate($pubDate->getTimestamp());
+            
+            $channel->addItem($item);
+        }
+
+        $feed->addChannel($channel);
+        $rssContent = $feed->render();
+
+        // Cache the RSS feed
+        Cache::put($cacheKey, $rssContent, now()->addMinutes(10));
+
+        return response($rssContent, 200, ['Content-Type' => 'application/rss+xml']);
+    }
 
 }
